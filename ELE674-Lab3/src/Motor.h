@@ -22,10 +22,7 @@
 #include <sys/time.h>
 
 
-#define POLICY SCHED_RR
-#define THREADSTACK  65536
 
-#define MOTOR_PERIOD	1
 
 enum { MOTOR_NONE, MOTOR_PWM_ONLY, MOTOR_LED_ONLY, MOTOR_PWM_LED };
 
@@ -43,6 +40,12 @@ enum { MOTOR_NONE, MOTOR_PWM_ONLY, MOTOR_LED_ONLY, MOTOR_PWM_LED };
 
 #define GPIO_ERROR_READ 176
 #define GPIO_ERROR_RESET 175
+
+#define MOTOR_PERIOD	100	//period = 5ms
+
+#define POLICY SCHED_RR
+#define THREADSTACK  65536
+#define MOTOR_TASK_PRIO 50
 
 typedef struct motor_struct {
 	uint16_t	pwm[4];   //motor speed 0x00-0x1ff

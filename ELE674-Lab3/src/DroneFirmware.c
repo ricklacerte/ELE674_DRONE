@@ -20,10 +20,10 @@
 #include <time.h>
 
 
-#include "Sensor.h"
+//#include "Sensor.h"
 #include "Motor.h"
-#include "Control.h"
-#include "Mavlink.h"
+//#include "Control.h"
+//#include "Mavlink.h"
 
 #define PERIODE_uS 	5000
 #define PERIODE_nS 	5000000L
@@ -31,64 +31,66 @@
 #define MAX_PERIOD	1000000000L
 #define MAIN_PERIOD	20
 
-
-SensorRawData	RawData[NUM_SENSOR][DATABUFSIZE];
+//**************************************** VARIABLES GLOBALES **************************************************************
+/*SensorRawData	RawData[NUM_SENSOR][DATABUFSIZE];
 SensorData	 	NavData[NUM_SENSOR][DATABUFSIZE];
 AttitudeData	AttitudeDesire, AttitudeMesure;
-
+*/
 MotorStruct		Motor;
-MavlinkStruct	Mavlink;
+/*MavlinkStruct	Mavlink;
 SensorParam	 	ParamData[NUM_SENSOR]   = { ACCEL_PARAM, GYRO_PARAM, SONAR_PARAM, BAROM_PARAM, MAGNETO_PARAM };
 SensorStruct	SensorTab[NUM_SENSOR]   = { ACCEL_INIT, GYRO_INIT, SONAR_INIT, BAROM_INIT, MAGNETO_INIT };
 AttitudeStruct	AttitudeTab[NUM_SENSOR] = { ACCEL_ATT_INIT, GYRO_ATT_INIT, SONAR_ATT_INIT, BAROM_ATT_INIT, MAGNETO_ATT_INIT };
 ControlStruct	Control = CONTROL_INIT;
-
-
-sem_t 	MotorTimerSem;
-int		MotorActivated = 0;
-sem_t	MavlinkReceiveTimerSem;
-sem_t	MavlinkStatusTimerSem;
+*/
 int		MavlinkActivated = 0;
-sem_t 	ControlTimerSem;
+int		MotorActivated = 0;
 int		ControlActivated = 0;
-
-sem_t 	MainTimerSem;
-
 
 struct itimerspec	NewTimer, OldTimer;
 timer_t				TimerID;
+struct sigaction  	TimerSig, old_TimerSig;           /* definition of signal action */
 
-struct sigaction  TimerSig, old_TimerSig;           /* definition of signal action */
+sem_t 	MainTimerSem;
+sem_t 	MotorTimerSem;
+sem_t 	ControlTimerSem;
+sem_t	MavlinkReceiveTimerSem;
+sem_t	MavlinkStatusTimerSem;
 
+/* ******************************************* TIMER *********************************************************************/
 void SigTimerHandler (int signo) {
-	static uint32_t  Period = 0;
-// intervalle régulier
-/* A faire! */
 /* Cette fonction est un "signal action" qui agit comme une interruption d'un timer.            */
 /* Elle sert à créer un évènement périodique (5 ms) qui peut servir de base de temps            */
 /* pour l'ensemble des Tâches du système.                                                       */
-/* Vous avez un exemple ci-dessous de comment utiliser ceci pour le Main et pour Mavlink.       */
-/* Il vous faudra ajouter ce qui convient pour les autres Tâches du système, selon les besoins. */
-	
 
-// exemple pour Mavlink
-if (MavlinkActivated) {
+static uint32_t  Period = 0;
+
+// Mavlink tempo
+/*if (MavlinkActivated) {
 		if ((Period % MAVLINK_RECEIVE_PERIOD) == 0)
 			sem_post(&MavlinkReceiveTimerSem);
 		if ((Period % MAVLINK_STATUS_PERIOD) == 0)
 			sem_post(&MavlinkStatusTimerSem);
-	}
+}*/
 
-// réveiller le main à intervalle (pour les touches)
-	if ((Period % MAIN_PERIOD) == 0)
-		sem_post (&MainTimerSem);
-	Period = (Period + 1) % MAX_PERIOD;
+//Motor tempo
+if (MotorActivated) {
+	if ((Period % MOTOR_PERIOD) == 0)
+		sem_post(&MotorTimerSem);
+}
+
+// Main tempo (pour les touches)
+if ((Period % MAIN_PERIOD) == 0)
+	sem_post (&MainTimerSem);
+
+//Period = tranches de 5ms
+Period = (Period + 1) % MAX_PERIOD;
 }
 
 
 int StartTimer (void) {
-	struct sigevent	 Sig;
-	int				 retval = 0;
+	struct 	sigevent Sig;
+	int		retval = 0;
 
 	memset (&TimerSig, 0, sizeof(struct sigaction));
 	TimerSig.sa_handler = SigTimerHandler;
@@ -119,7 +121,7 @@ int StopTimer (void) {
 	return retval;
 }
 
-
+/************************************************** KEYBOARD ***************************************************************/
 // pour le clavier
 #include <ctype.h>    /* For tolower() function */
 int getchar_nonblock(void) {
@@ -138,15 +140,19 @@ int getchar_nonblock(void) {
 	return ch;
 }
 
-
+/******************************************************* TASK INIT *******************************************************/
 // main peut recevoir des arguments
 int main(int argc, char *argv[]) {
+
+// variables locales
 	struct sched_param	param;
-	int		minprio, maxprio;
-	char	IPAddress[20] = {TARGET_IP};
-	int		i, j, retval = 0;
+//	int		minprio, maxprio;
+//	char	IPAddress[20] = {TARGET_IP};
+	//int		i, j,
+	int retval = 0;
 	int		ch = 0;
 
+// options démarrages (par argc)
 	printf("Usage :\n");
 	printf("	DroneFirmware <Option>\n");
 	printf("	   Option :	Pas d'option -> Par défaut (Pas de Log, IP = 192.168.1.2)\n");
@@ -160,7 +166,7 @@ int main(int argc, char *argv[]) {
 	printf("	Note : Les options peuvent être cumulées et dans n'importe quel ordre.\n");
 	printf("		   La syntaxe des options doit être strictement respectée.\n");
 
-	if (argc > 1) {
+/*	if (argc > 1) {
 		for (i = 1; i < argc; i++) {
 			if (strcmp(argv[i],"LogAccel") == 0)
 				SensorTab[ACCELEROMETRE].DoLog = 1;
@@ -181,25 +187,32 @@ int main(int argc, char *argv[]) {
 	}
 	printf("%s : IP = %s\n", __FUNCTION__, IPAddress);
 	printf("%s ça démarre !!!\n", __FUNCTION__);
-
+*/
+// scheduler setup : la tâche courante = la priorité minimale->TASK INIT :la plus prioritaire
 	param.sched_priority = sched_get_priority_min(POLICY);
-   pthread_setschedparam(pthread_self(), POLICY, &param);
+	pthread_setschedparam(pthread_self(), POLICY, &param);
 
+
+// initialisation des verrous
+	//temporisations
 	sem_init(&MainTimerSem, 0, 0);
 
-	if ((retval = pthread_spin_init(&(AttitudeDesire.AttitudeLock), 1)) < 0) {
+	// Spinlock : AttitudeDesire.AttitudeLock
+	/*if ((retval = pthread_spin_init(&(AttitudeDesire.AttitudeLock), 1)) < 0) {
 		printf("%s : Impossible d'initialiser le spinlock (AttitudeDesiree.AttitudeLock): retval = %d\n", __FUNCTION__, retval);
-		return -1; /* exit thread */
-	}
-	if ((retval = pthread_spin_init(&(AttitudeMesure.AttitudeLock), 1)) < 0) {
+		return -1; // exit thread
+	}*/
+	// Spinlock : AttitudeMesure.AttitudeLock
+	/*if ((retval = pthread_spin_init(&(AttitudeMesure.AttitudeLock), 1)) < 0) {
 		printf("%s : Impossible d'initialiser le spinlock (AttitudeDesiree.AttitudeLock): retval = %d\n", __FUNCTION__, retval);
-		return -1; /* exit thread */
-	}
+		return -1; // exit thread
+	}*/
+
 
 //initialisations 
 	if ((retval = MotorInit(&Motor)) < 0)
 		return EXIT_FAILURE;
-	if ((retval = SensorsLogsInit(SensorTab)) < 0)
+	/*if ((retval = SensorsLogsInit(SensorTab)) < 0)
 		return EXIT_FAILURE;
 	if ((retval = SensorsInit(SensorTab)) < 0)
 		return EXIT_FAILURE;
@@ -209,20 +222,19 @@ int main(int argc, char *argv[]) {
 		return EXIT_FAILURE;
 	if ((retval = ControlInit(&Control)) < 0)
 		return EXIT_FAILURE;
-
-	printf("%s Tout initialisé\n", __FUNCTION__);
+	*/printf("%s Tout initialisé\n", __FUNCTION__);
 
 	StartTimer();
 
 // Démarrage des tâches
 	MotorStart();
-	SensorsStart();
-	AttitudeStart();
+	//SensorsStart();
+	//AttitudeStart();
 
-	SensorsLogsStart();
+	//SensorsLogsStart();
 
-	MavlinkStart();
-	ControlStart();
+	//MavlinkStart();
+	//ControlStart();
 
 	printf("%s Tout démarré\n", __FUNCTION__);
 
@@ -235,22 +247,24 @@ int main(int argc, char *argv[]) {
 	}
 
 //q au clavier-> quit:
-	MavlinkStop(&Mavlink);
-	pthread_spin_destroy(&(AttitudeDesire.AttitudeLock));
-	pthread_spin_destroy(&(AttitudeMesure.AttitudeLock));
+	//MavlinkStop(&Mavlink);
+	//pthread_spin_destroy(&(AttitudeDesire.AttitudeLock));
+	//pthread_spin_destroy(&(AttitudeMesure.AttitudeLock));
 
-	ControlStop(&Control);
+	//ControlStop(&Control);
 
 	MotorStop(&Motor);
-	SensorsLogsStop(SensorTab);
-	SensorsStop(SensorTab);
-	AttitudeStop(AttitudeTab);
+	//SensorsLogsStop(SensorTab);
+	//SensorsStop(SensorTab);
+	//AttitudeStop(AttitudeTab);
 
 	StopTimer();
 
 	printf("%s Tout arrêté\n", __FUNCTION__);
 
+	//Destructions des Verrous
 	sem_destroy(&MainTimerSem);
+	sem_destroy(&MotorTimerSem);
 
 	return EXIT_SUCCESS;
 }

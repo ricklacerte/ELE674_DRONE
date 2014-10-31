@@ -5,16 +5,14 @@
  *      Author: bruno
  */
 
-
 #include "Motor.h"
-
 #define TimeDelay 50000
 
 extern sem_t	MotorTimerSem;
 extern int		MotorActivated;
 
-pthread_barrier_t 	MotorStartBarrier;
 
+pthread_barrier_t 	MotorStartBarrier;
 
 int gpio_set (int nr, int val)  {
 	char cmdline[200];
@@ -31,15 +29,22 @@ int gpio_set (int nr, int val)  {
 
 
 int motor_open(void) {
+	/* return:   0 -> ouverture UART moteur = SUCCESS
+	 * 			-1 -> ouverture UART moteur = FAIL
+	 */
 	struct termios config;
+
+	// ouvrir le pilote UART du moteur
 	int uart = open(MOTOR_UART, O_RDWR | O_NOCTTY | O_NDELAY);
 
+	//erreur: ouverture du pilote UART
 	if (uart < 0) {
 		printf("motor_open : impossible d'ouvrir le uart du moteur\n");
 		return uart;
 	}
 
-	fcntl(uart, F_SETFL, 0); //read calls are non blocking
+	//read calls are non blocking
+	fcntl(uart, F_SETFL, 0);
 
 	//set port config
 	tcgetattr(uart, &config);
@@ -54,6 +59,12 @@ int motor_open(void) {
 }
 
 int motor_cmd(int file, uint8_t cmd, uint8_t *reply, int replylen) {
+	/*file 		: handler du moteur (UART)
+	 * cmd 		: ??
+	 * reply	: réponse du UART
+	 * relpylen	: taille de la réponse
+	 *
+	 */
 	int size;
 
 	write(file, &cmd, 1);
@@ -64,17 +75,24 @@ int motor_cmd(int file, uint8_t cmd, uint8_t *reply, int replylen) {
 	return size;
 }
 
-// initialiser le moteurs (devrait etre appelé dans la phase d'initialisation)
+
 int MotorPortInit(MotorStruct *Motor) {
+	/*return  	 0 : SUCCESS
+	 * 			-1 : FAIL ( via motor_open() UART )
+	 */
+
 	uint8_t reply[256];
 	int		i;
 
 	//open motor port
 	Motor->file = motor_open();
+
+	//erreur: ouverture UART
 	if (Motor->file < 0) {
 		printf("motor_open: Impossible d'ouvrir le UART\n");
 		return Motor->file;
 	}
+
 	//reset IRQ flipflop - this code resets GPIO_ERROR_READ to 0
 	gpio_set(GPIO_ERROR_RESET, 0);
 	usleep(2*TimeDelay);
@@ -109,6 +127,7 @@ int MotorPortInit(MotorStruct *Motor) {
 	gpio_set(GPIO_ERROR_READ, -1);
 	usleep(2*TimeDelay);
 
+	//SUCCESS
 	return 0;
 }
 
@@ -133,26 +152,72 @@ void *MotorTask ( void *ptr ) {
 /* A faire! */
 /* Tache qui transmet les nouvelles valeurs de vitesse */
 /* à chaque moteur à interval régulier (5 ms).         */
+
+
 	while (MotorActivated) {
+		//tempo : 5ms
+		sem_wait(&MotorTimerSem);
+		printf("fgndfkjssssssssssssslviyn8tmlwq");
+
 //		DOSOMETHING();
 	}
+
+	//Destruction: MotorTask
 	pthread_exit(0); /* exit thread */
 }
 
-//MOTOR INIT
+
+
+/*MOTOR INIT:
+ *Initialise le pilote de comm. des moteurs
+ *Crée la tâche: MotorTask
+ *return: 	0  -> SUCCESS
+ *			- -> ERROR */
+
 int MotorInit (MotorStruct *Motor) {
-/* A faire! */
-/* Ici, vous devriez faire l'initialisation des moteurs.   */
-/* C'est-à-dire initialiser le Port des moteurs avec la    */
-/* fonction MotorPortInit() et créer la Tâche MotorTask()  */
-/* qui va s'occuper des mises à jours des moteurs en cours */ 
-/* d'exécution.                                            */
-	return 0;
+
+
+	// Variables locales
+	int res;
+	pthread_attr_t MotorTaskattr;
+	struct sched_param SchedParam;
+
+	//initialisation Pilote
+	MotorPortInit(Motor);
+
+	// Création attr pour MotorTask
+	pthread_attr_init(&MotorTaskattr);
+
+	/* à déterminer ce qui est nécessaire à MotorTask*/
+	pthread_attr_setdetachstate(&MotorTaskattr,PTHREAD_CREATE_JOINABLE);// task peut etre rejoignable(barriere)??
+	//pthread_setname_np("");
+	pthread_attr_setinheritsched(&MotorTaskattr,PTHREAD_EXPLICIT_SCHED); // héritage param. de la task qui la cree??
+	pthread_attr_setscope(&MotorTaskattr, PTHREAD_SCOPE_SYSTEM); // Process vs task? tjrs ..._SYSTEM ne linux!
+	pthread_attr_setstacksize(&MotorTaskattr,THREADSTACK);
+	SchedParam.sched_priority=MOTOR_TASK_PRIO;
+	pthread_attr_setschedpolicy(&MotorTaskattr, POLICY);
+	pthread_attr_setschedparam(&MotorTaskattr,&SchedParam);
+
+	// Création de MotorTask
+	res=pthread_create(&Motor->MotorThread,&MotorTaskattr,MotorTask,Motor); //est-ce que l'on envoie Motor ??
+
+	if (!res)
+		printf("MotorInit : MotorTask created, res=%d",res);
+
+	//Destruction attr pour MotorTask
+	pthread_attr_destroy(&MotorTaskattr);
+
+	//Initialisation des verrous
+	sem_init(&MotorTimerSem,0,0);
+
+	return res;
 }
 
 
 //MOTOR START
 int MotorStart (void) {
+	MotorActivated=1;
+
 /* A faire! */
 /* Ici, vous devriez démarrer la mise à jour des moteurs (MotorTask).    */ 
 /* Tout le système devrait être prêt à faire leur travail et il ne reste */
@@ -163,6 +228,9 @@ int MotorStart (void) {
 
 //MOTOR STOP
 int MotorStop (MotorStruct *Motor) {
+	MotorActivated=0;
+
+
 /* A faire! (motor activated à 0)*/
 /* Ici, vous devriez arrêter les moteurs et fermer le Port des moteurs. */ 
 	return 0;

@@ -29,7 +29,7 @@ all: ELE674-Lab3
 ELE674-Lab3: $(OBJS) $(USER_OBJS)
 	@echo 'Building target: $@'
 	@echo 'Invoking: Cross GCC Linker'
-	arm-none-linux-gnueabi-gcc -L/home/ens/AK22070/Documents/ELE674/Lab2-Image_Drone/CodeSourcery/arm-none-linux-gnueabi/libc/usr/lib -pthread -lm -lrt -shared -o "ELE674-Lab3" $(OBJS) $(USER_OBJS) $(LIBS)
+	arm-none-linux-gnueabi-gcc -L/home/ens/AK22070/Documents/ELE674/Lab2-Image_Drone/CodeSourcery/arm-none-linux-gnueabi/libc/usr/lib -pthread -lm -lrt  -ftest-coverage -fprofile-arcs -shared -o "ELE674-Lab3" $(OBJS) $(USER_OBJS) $(LIBS)
 	@echo 'Finished building target: $@'
 	@echo ' '
 

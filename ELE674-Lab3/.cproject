@@ -26,7 +26,7 @@
 							<tool id="cdt.managedbuild.tool.gnu.cross.c.compiler.105938691" name="Cross GCC Compiler" superClass="cdt.managedbuild.tool.gnu.cross.c.compiler">
 								<option defaultValue="gnu.c.optimization.level.none" id="gnu.c.compiler.option.optimization.level.340100458" name="Optimization Level" superClass="gnu.c.compiler.option.optimization.level" valueType="enumerated"/>
 								<option id="gnu.c.compiler.option.debugging.level.1854419379" name="Debug Level" superClass="gnu.c.compiler.option.debugging.level" value="gnu.c.debugging.level.max" valueType="enumerated"/>
-								<option id="gnu.c.compiler.option.misc.other.1670725891" name="Other flags" superClass="gnu.c.compiler.option.misc.other" value="-lm -pthread -lrt -c -fmessage-length=0" valueType="string"/>
+								<option id="gnu.c.compiler.option.misc.other.1670725891" name="Other flags" superClass="gnu.c.compiler.option.misc.other" value="-lm -pthread -lrt -c -ftest-coverage -fprofile-arcs -fmessage-length=0" valueType="string"/>
 								<inputType id="cdt.managedbuild.tool.gnu.c.compiler.input.522580591" superClass="cdt.managedbuild.tool.gnu.c.compiler.input"/>
 							</tool>
 							<tool id="cdt.managedbuild.tool.gnu.cross.cpp.compiler.1738299915" name="Cross G++ Compiler" superClass="cdt.managedbuild.tool.gnu.cross.cpp.compiler">
@@ -37,7 +37,7 @@
 								<option id="gnu.c.link.option.paths.1627692626" name="Library search path (-L)" superClass="gnu.c.link.option.paths" valueType="libPaths">
 									<listOptionValue builtIn="false" value="/home/ens/AK22070/Documents/ELE674/Lab2-Image_Drone/CodeSourcery/arm-none-linux-gnueabi/libc/usr/lib"/>
 								</option>
-								<option id="gnu.c.link.option.ldflags.1551220549" name="Linker flags" superClass="gnu.c.link.option.ldflags" value="-pthread -lm -lrt" valueType="string"/>
+								<option id="gnu.c.link.option.ldflags.1551220549" name="Linker flags" superClass="gnu.c.link.option.ldflags" value="-pthread -lm -lrt  -ftest-coverage -fprofile-arcs " valueType="string"/>
 								<option id="gnu.c.link.option.shared.633401062" name="Shared (-shared)" superClass="gnu.c.link.option.shared" value="true" valueType="boolean"/>
 								<inputType id="cdt.managedbuild.tool.gnu.c.linker.input.1201620634" superClass="cdt.managedbuild.tool.gnu.c.linker.input">
 									<additionalInput kind="additionalinputdependency" paths="$(USER_OBJS)"/>

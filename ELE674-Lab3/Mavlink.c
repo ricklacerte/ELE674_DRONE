@@ -9,6 +9,7 @@
  */
 
 #include "Mavlink.h"
+#include "Control.h"
 
 
 extern sem_t	MavlinkReceiveTimerSem;
@@ -235,6 +236,8 @@ int MavlinkStop(MavlinkStruct *Mavlink) {
 	MavlinkActivated = 0;
 	sem_post(&MavlinkReceiveTimerSem);
 	sem_post(&MavlinkStatusTimerSem);
+
+	printf("%s\n", __FUNCTION__);
 
 	err = pthread_join(Mavlink->MavlinkStatusTask, NULL);
 	if (err) {

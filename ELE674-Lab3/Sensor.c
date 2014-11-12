@@ -158,7 +158,6 @@ void *SensorTask ( void *ptr ) {
 				Sensor->Data[Sensor->DataIdx].Data[0] = temp_data[0];
 				Sensor->Data[Sensor->DataIdx].Data[1] = temp_data[1];
 				Sensor->Data[Sensor->DataIdx].Data[2] = temp_data[2];
-
 				Sensor->Data->TimeDelay = Sensor->RawData->timestamp_n - Sensor->RawData->timestamp_s;
 			pthread_spin_unlock(&Sensor->DataLock);
 

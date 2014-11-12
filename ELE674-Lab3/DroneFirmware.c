@@ -52,18 +52,14 @@ sem_t	SonarlTimerSem;
 sem_t	BaromTimerSem;
 sem_t	MagnetTimerSem;
 
-int			MotorActivated = 0;
-uint8_t 	SensorsActivated =0;
-
+int		MotorActivated = 0;
+uint8_t SensorsActivated =0;
+int		MavlinkActivated = 0;
+int		ControlActivated = 0;
 
 sem_t	MavlinkReceiveTimerSem;
 sem_t	MavlinkStatusTimerSem;
-int		MavlinkActivated = 0;
 sem_t 	ControlTimerSem;
-int		ControlActivated = 0;
-
-
-
 
 struct itimerspec	NewTimer, OldTimer;
 timer_t				TimerID;
@@ -78,8 +74,13 @@ void SigTimerHandler (int signo) {
 /* pour l'ensemble des Tâches du système.                                                       */
 /* Vous avez un exemple ci-dessous de comment utiliser ceci pour le Main et pour Mavlink.       */
 /* Il vous faudra ajouter ce qui convient pour les autres Tâches du système, selon les besoins. */
+	if (ControlActivated) {
+			if ((Period % CONTROL_PERIOD) == 0)
+				sem_post(&ControlTimerSem);
+		}
 
-		if (MavlinkActivated) {
+
+	if (MavlinkActivated) {
 		if ((Period % MAVLINK_RECEIVE_PERIOD) == 0)
 			sem_post(&MavlinkReceiveTimerSem);
 		if ((Period % MAVLINK_STATUS_PERIOD) == 0)
@@ -234,9 +235,9 @@ int main(int argc, char *argv[]) {
 		return EXIT_FAILURE;
 	if ((retval = MavlinkInit(&Mavlink, &AttitudeDesire, &AttitudeMesure, IPAddress)) < 0)
 		return EXIT_FAILURE;
-/*	if ((retval = ControlInit(&Control)) < 0)
+	if ((retval = ControlInit(&Control)) < 0)
 		return EXIT_FAILURE;
-*/
+
 	printf("%s Tout initialisé\n", __FUNCTION__);
 
 	if(!StartTimer())
@@ -264,19 +265,18 @@ int main(int argc, char *argv[]) {
 		sem_wait(&MainTimerSem);
 		ch = tolower(getchar_nonblock());
 		printf("%s \n", __FUNCTION__);
-
 	}
 
 	MavlinkStop(&Mavlink);
 	pthread_spin_destroy(&(AttitudeDesire.AttitudeLock));
 	pthread_spin_destroy(&(AttitudeMesure.AttitudeLock));
 
-//	ControlStop(&Control);
+	ControlStop(&Control);
 
 	MotorStop(&Motor);
 //	SensorsLogsStop(SensorTab);
 	SensorsStop(SensorTab);
-//	AttitudeStop(AttitudeTab);
+	AttitudeStop(AttitudeTab);
 
 	StopTimer();
 

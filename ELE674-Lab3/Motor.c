@@ -117,6 +117,7 @@ void motor_send(MotorStruct *Motor, int SendMode){
 
 	uint8_t 	trame_pwm[5]={0,0,0,0,0};
 	uint16_t  	trame_led;
+	uint8_t		trame_pwmled[7];
 	int res;
 
 	uint16_t	tmp_pwm[4];   //motor speed 0x00-0x1ff
@@ -128,12 +129,13 @@ void motor_send(MotorStruct *Motor, int SendMode){
 		tmp_pwm[1]=Motor->pwm[1];
 		tmp_pwm[2]=Motor->pwm[2];
 		tmp_pwm[3]=Motor->pwm[3];
-
 		tmp_led[0]=Motor->led[0];
 		tmp_led[1]=Motor->led[1];
 		tmp_led[2]=Motor->led[2];
 		tmp_led[3]=Motor->led[3];
 	pthread_spin_unlock(&Motor->MotorLock);
+
+	printf("%s %d %d %d %d \n",__FUNCTION__,tmp_pwm[0],tmp_pwm[1],tmp_pwm[2],tmp_pwm[3]);
 
 	switch (SendMode) {
 	case MOTOR_NONE :
@@ -166,27 +168,27 @@ void motor_send(MotorStruct *Motor, int SendMode){
 		break;
 
 	case MOTOR_PWM_LED :
-/*		if (LED_Inhibit % 5){
-		//Construction de la trame PWM
-		trame_pwm[0]=(			(CMD_PWM & 0x07) << 5 	| (tmp_pwm[0]&MASK_9BITS) >> 3);
-		trame_pwm[1]=((tmp_pwm[0]&MASK_9BITS) << 4 	| (tmp_pwm[1]&MASK_9BITS) >> 4);
-		trame_pwm[2]=((tmp_pwm[1]&MASK_9BITS) << 3 	| (tmp_pwm[2]&MASK_9BITS) >> 5);
-		trame_pwm[3]=((tmp_pwm[2]&MASK_9BITS) << 2 	| (tmp_pwm[3]&MASK_9BITS) >> 6);
-		trame_pwm[4]= (tmp_pwm[3]&MASK_9BITS) << 1;
+		tmp_pwm[0]=250;
+		tmp_pwm[1]=0;
+		tmp_pwm[2]=0;
+		tmp_pwm[3]=0;
 
-		res=write(Motor->file,trame_pwm,5);
+		//Construction de la trame PWM
+		trame_pwmled[0]=(			(CMD_PWM & 0x07) << 5 	| (tmp_pwm[0]&MASK_9BITS) >> 3);
+		trame_pwmled[1]=((tmp_pwm[0]&MASK_9BITS) << 4 	| (tmp_pwm[1]&MASK_9BITS) >> 4);
+		trame_pwmled[2]=((tmp_pwm[1]&MASK_9BITS) << 3 	| (tmp_pwm[2]&MASK_9BITS) >> 5);
+		trame_pwmled[3]=((tmp_pwm[2]&MASK_9BITS) << 2 	| (tmp_pwm[3]&MASK_9BITS) >> 6);
+		trame_pwmled[4]= (tmp_pwm[3]&MASK_9BITS) << 1;
+
+		//Construction de la trame LED
+		trame_pwmled[5]=(CMD_LED << 5)	| (tmp_led[0]>>7) | (tmp_led[1]>>6) |	(tmp_led[2]>>5)	| (tmp_led[3]>>4);
+		trame_pwmled[6]=(tmp_led[0]<<1) | (tmp_led[1]<<2) |	(tmp_led[2]<<3)	| (tmp_led[3]<<4);
+
+		//Envoi de la trame combinée
+		res=write(Motor->file,trame_pwmled,7);
+
 		if(res<0)
 			printf("Erreur lors de l'envoi au pilote moteur(PWM)! res=%d \n",res);
-		}
-		else
-		{
-		//Construction de la trame LED
-		trame_led=(CMD_LED << 13)	| (tmp_led[0])<<1 | (tmp_led[1]<<2) |	(tmp_led[2]<<3)	| (tmp_led[3]<<4);
-
-		res=write(Motor->file,&trame_led,2);
-		if(res<0)
-			printf("Erreur lors de l'envoi au pilote moteur(LED)! res=%d \n",res);
-		}*/
 
 		break;
 	}
@@ -200,11 +202,11 @@ void *MotorTask ( void * ptr ) {
 	pthread_barrier_wait(&MotorStartBarrier);
 
 	// essaie
-	Motor->pwm[3]=0x3F;
+	/*Motor->pwm[3]=0x3F;
 	Motor->led[0]=MOTOR_LEDOFF;
 	Motor->led[1]=MOTOR_LEDRED;
 	Motor->led[2]=MOTOR_LEDGREEN;
-	Motor->led[3]=MOTOR_LEDORANGE;
+	Motor->led[3]=MOTOR_LEDORANGE;*/
 
 	while (MotorActivated) {
 
@@ -213,13 +215,10 @@ void *MotorTask ( void * ptr ) {
 
 		printf("%s \n",__FUNCTION__);
 
+		/*C'est quoi qu'on envoie quand?? */
 		//motor_send(Motor,MOTOR_PWM_ONLY);
 		//motor_send(Motor,MOTOR_LED_ONLY);
-
-
-		//motor_send(Motor,MOTOR_PWM_LED);
-
-		//sem_post(&MotorTimerSem);
+		motor_send(Motor,MOTOR_PWM_LED);
 	}
 
 	//Destruction: MotorTask

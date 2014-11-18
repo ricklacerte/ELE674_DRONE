@@ -87,19 +87,6 @@ void SigTimerHandler (int signo) {
 			sem_post(&MavlinkStatusTimerSem);
 	}
 
-	if (SensorsActivated){
-		if ((Period % ACCEL_RATE) == 0)
-			sem_post (&SensorTab[ACCELEROMETRE].TimerSem);
-		if ((Period % GYRO_RATE) == 0)
-			sem_post (&SensorTab[GYROSCOPE].TimerSem);
-		if ((Period % SONAR_RATE) == 0)
-			sem_post (&SensorTab[SONAR].TimerSem);
-		if ((Period % BAROM_RATE) == 0)
-			sem_post (&SensorTab[BAROMETRE].TimerSem);
-		if ((Period % MAGNETO_RATE) == 0)
-			sem_post (&SensorTab[MAGNETOMETRE].TimerSem);
-	}
-
 	if (MotorActivated){
 		if ((Period % MOTOR_PERIOD) == 0)
 			sem_post (&MotorTimerSem);
@@ -214,16 +201,34 @@ int main(int argc, char *argv[]) {
 	param.sched_priority = sched_get_priority_min(POLICY);
 	pthread_setschedparam(pthread_self(), POLICY, &param);
 
+
 	sem_init(&MainTimerSem, 0, 0);
+
 
 	if ((retval = pthread_spin_init(&(AttitudeDesire.AttitudeLock), 1)) < 0) {
 		printf("%s : Impossible d'initialiser le spinlock (AttitudeDesiree.AttitudeLock): retval = %d\n", __FUNCTION__, retval);
-		return -1; /* exit thread */
+		return -1;
 	}
 	if ((retval = pthread_spin_init(&(AttitudeMesure.AttitudeLock), 1)) < 0) {
 		printf("%s : Impossible d'initialiser le spinlock (AttitudeDesiree.AttitudeLock): retval = %d\n", __FUNCTION__, retval);
-		return -1; /* exit thread */
+		return -1;
 	}
+
+
+
+	//Mesure.AttitudeMutex
+	if((retval=pthread_mutex_init(&(AttitudeMesure.AttitudeMutex),NULL))<0){
+		printf("%s : Errueur initialisation verrous retval = %d\n", __FUNCTION__, retval);
+		return retval;
+	}
+
+
+	//Desire.AttitudeMutex
+	if((retval=pthread_mutex_init(&(AttitudeDesire.AttitudeMutex),NULL))<0){
+		printf("%s : Errueur initialisation verrous retval = %d\n", __FUNCTION__, retval);
+		return retval;
+	}
+
 
 	if ((retval = MotorInit(&Motor)) < 0)
 		return EXIT_FAILURE;
@@ -242,11 +247,8 @@ int main(int argc, char *argv[]) {
 
 	if(!StartTimer())
 		printf("%s Timer started!\n", __FUNCTION__);
-
-
 	if(!MotorStart())
 		printf("%s Motor started!\n", __FUNCTION__);
-
 	if(!SensorsStart())
 		printf("%s Sensors started!\n", __FUNCTION__);
 
@@ -255,7 +257,7 @@ int main(int argc, char *argv[]) {
 	//SensorsLogsStart();
 
 	MavlinkStart();
-	//ControlStart();
+	ControlStart();
 
 	printf("%s Tout démarré\n", __FUNCTION__);
 
@@ -264,15 +266,16 @@ int main(int argc, char *argv[]) {
 	while (ch != 'q') {
 		sem_wait(&MainTimerSem);
 		ch = tolower(getchar_nonblock());
-		printf("%s \n", __FUNCTION__);
+		//printf("%s \n", __FUNCTION__);
 	}
 
 	MavlinkStop(&Mavlink);
+	pthread_mutex_destroy(&AttitudeDesire.AttitudeMutex);
+	pthread_mutex_destroy(&AttitudeMesure.AttitudeMutex);
 	pthread_spin_destroy(&(AttitudeDesire.AttitudeLock));
 	pthread_spin_destroy(&(AttitudeMesure.AttitudeLock));
 
 	ControlStop(&Control);
-
 	MotorStop(&Motor);
 //	SensorsLogsStop(SensorTab);
 	SensorsStop(SensorTab);

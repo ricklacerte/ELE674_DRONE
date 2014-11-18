@@ -9,7 +9,6 @@
 #include "Sensor.h"
 
 pthread_barrier_t   AttitudeStartBarrier;
-
 uint8_t  AttitudeActivated 	= 0;
 
 
@@ -28,8 +27,8 @@ void *AttitudeTask ( void *ptr ) {
 	double			XYZ[2][3] = {{0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}};
 	uint32_t		timestamp_s, timestamp_n;
 	//modif*********** pour éviter partir Acceltask avant SensorTask
-	//uint16_t		DataIdx[2] = {DATABUFSIZE, DATABUFSIZE-1};
-	uint16_t		DataIdx[2] = {0, DATABUFSIZE};
+	uint16_t		DataIdx[2] = {DATABUFSIZE, DATABUFSIZE-1};
+	//uint16_t		DataIdx[2] = {0, DATABUFSIZE};
 	double 			Ts, Ka, Kb, Tau = Attitude->XYZTau;
 	double			Mx, My;
 	uint16_t		i;
@@ -40,10 +39,9 @@ void *AttitudeTask ( void *ptr ) {
 
 //EXECUTON
 	while (AttitudeActivated) {
-
-		//Si pas de NEW DATA -> SLEEP
+		printf("%s \n", __FUNCTION__);
+		//NOTHING NEW -> SLEEP
 		pthread_mutex_lock(&(Sensor->DataSampleMutex));
-
 			while ((DataIdx[0] == Sensor->DataIdx)&&(AttitudeActivated != 0))
 				pthread_cond_wait(&(Sensor->DataNewSampleCondVar), &(Sensor->DataSampleMutex));
 
@@ -52,11 +50,12 @@ void *AttitudeTask ( void *ptr ) {
 				pthread_mutex_unlock(&(Sensor->DataSampleMutex));
 			break;
 			}
-			//printf("%s: DataIdx[0]=%d, sensor->DataIdx=%d, AttitudeActivated=%d \n", __FUNCTION__,DataIdx[0],Sensor->DataIdx,AttitudeActivated);
-			//printf("%s \n", __FUNCTION__);
+
+			//printf("%s %s Spinlock\n", __FUNCTION__,Sensor->Name);
 
 			//Copie DATA Sensor (from SensorTask): CURRENT et PRÉCÉDENT
 			pthread_spin_lock(&(Sensor->DataLock));
+			//pthread_mutex_lock(&Sensor->DataMutex);
 				DataIdx[0]    = Sensor->DataIdx;
 				DataIdx[1] = (DataIdx[0] + DATABUFSIZE - 1) % DATABUFSIZE;
 				memcpy((void *) &(SensorData[0][0]), (void *) (Sensor->Data[DataIdx[0]].Data), 3*sizeof(double));
@@ -64,15 +63,23 @@ void *AttitudeTask ( void *ptr ) {
 				timestamp_s = Sensor->RawData[DataIdx[0]].timestamp_s;
 				timestamp_n = Sensor->RawData[DataIdx[0]].timestamp_n;
 				Ts	= ((double) (Sensor->Data[DataIdx[0]].TimeDelay))/1000000000.0;
+			//pthread_mutex_unlock(&Sensor->DataMutex);
 			pthread_spin_unlock(&(Sensor->DataLock));
 
+			//if(Sensor->type==ACCELEROMETRE)
+				//printf("%s: %s %u %u %u %u  \n", __FUNCTION__,Sensor->Name,DataIdx[0],timestamp_s,timestamp_n,Sensor->Data[DataIdx[0]].TimeDelay);
 		pthread_mutex_unlock(&(Sensor->DataSampleMutex));
 
+		//printf("%s %s mutex\n", __FUNCTION__,Sensor->Name);
 		//Copie AttitudeMesure précédente ?
+		//pthread_mutex_lock(&(AttitudeMesure->AttitudeMutex));
 		pthread_spin_lock(&(AttitudeMesure->AttitudeLock));
 			memcpy((void *) &LocData, (void *) &(Attitude->AttitudeMesure->Data), sizeof(AttData));
 			memcpy((void *) &LocSpeed, (void *) &(Attitude->AttitudeMesure->Speed), sizeof(AttData));
+		//pthread_mutex_unlock(&(AttitudeMesure->AttitudeMutex));
 		pthread_spin_unlock(&(AttitudeMesure->AttitudeLock));
+
+		//printf("%s %s mutex fin\n", __FUNCTION__,Sensor->Name);
 
 		// Calcul de constantes
 	  	Ka = ((2.0*Tau - Ts)/(2.0*Tau + Ts));
@@ -89,18 +96,18 @@ void *AttitudeTask ( void *ptr ) {
 		switch (Sensor->type) {
 		  case ACCELEROMETRE :	LocData.Roll  = atan2(XYZ[0][Y_AXE], XYZ[0][Z_AXE]);
 		  	  	  	  	  	  	LocData.Pitch = atan(XYZ[0][X_AXE]/(XYZ[0][Y_AXE]*sin(LocData.Roll)+XYZ[0][Z_AXE]*cos(LocData.Roll)));
-		  	  	  	  	  	  	printf("%s accel \n", __FUNCTION__);
+		  	  	  	  	  	  	//printf("%s accel \n", __FUNCTION__);
 			  	  	  	  	  	break;
 
 		  case GYROSCOPE :		LocSpeed.Roll  = (XYZ[0][X_AXE]);
 		  	  	  	  	  	  	LocSpeed.Pitch = -(XYZ[0][Y_AXE]);
 		  	  	  	  	  	  	LocSpeed.Yaw   = -(XYZ[0][Z_AXE]);
-		  	  	  	  	  	  	printf("%s gyro \n", __FUNCTION__);
+		  	  	  	  	  	  	//printf("%s gyro \n", __FUNCTION__);
 	  	  	  	  				break;
 
 		  case SONAR :			LocData.Elevation  = (XYZ[0][X_AXE]);
 		  	  	  	  	  	  	LocSpeed.Elevation = ((XYZ[0][X_AXE])-(XYZ[1][X_AXE]))/Ts;
-		  	  	  	  	  	  	printf("%s sonar \n", __FUNCTION__);
+		  	  	  	  	  	  	//printf("%s sonar \n", __FUNCTION__);
 	  	  	  	  				break;
 
 		  case BAROMETRE :		break;
@@ -108,18 +115,20 @@ void *AttitudeTask ( void *ptr ) {
 		  case MAGNETOMETRE :	My = -XYZ[0][Z_AXE]*sin(LocData.Roll) + XYZ[0][X_AXE]*cos(LocData.Roll);
 								Mx = -XYZ[0][Y_AXE]*cos(LocData.Pitch) - XYZ[0][X_AXE]*sin(LocData.Pitch)*sin(LocData.Roll) - XYZ[0][Z_AXE]*sin(LocData.Pitch)*cos(LocData.Roll);
 								LocData.Yaw = atan2(My,Mx);
-								printf("%s magnet \n", __FUNCTION__);
+								//printf("%s magnet \n", __FUNCTION__);
   								break;
 		}
 
 		//Copie: New values -> AttitudeMesure
+		//pthread_mutex_lock(&(AttitudeMesure->AttitudeMutex));
 		pthread_spin_lock(&(AttitudeMesure->AttitudeLock));
 			memcpy((void *) &(Attitude->AttitudeMesure->Data), (void *) &LocData, sizeof(AttData));
 			memcpy((void *) &(Attitude->AttitudeMesure->Speed), (void *) &LocSpeed, sizeof(AttData));
 			AttitudeMesure->timestamp_s = timestamp_s;
 			AttitudeMesure->timestamp_n = timestamp_n;
+		//pthread_mutex_lock(&(AttitudeMesure->AttitudeMutex));
 		pthread_spin_unlock(&(AttitudeMesure->AttitudeLock));
-
+		printf("%s %s fin \n", __FUNCTION__,Sensor->Name);
 	}
 
 //EXIT
@@ -134,6 +143,7 @@ int AttitudeInit (AttitudeStruct AttitudeTab[NUM_SENSOR]) {
 	struct sched_param	param;
 	int					minprio, maxprio;
 	int					i;
+	int retval;
 
 	pthread_barrier_init(&AttitudeStartBarrier, NULL, NUM_SENSOR+1);
 
@@ -149,6 +159,7 @@ int AttitudeInit (AttitudeStruct AttitudeTab[NUM_SENSOR]) {
 	pthread_attr_setschedparam(&attr, &param);
 
 	for (i = 0; i < NUM_SENSOR; i++) {
+
 		pthread_create(&(AttitudeTab[i].AttitudeThread), &attr, AttitudeTask, (void *) &(AttitudeTab[i]));
 	}
 

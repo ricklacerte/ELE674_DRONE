@@ -33,7 +33,7 @@
 #define OLD_SAMPLE        0
 #define NEW_SAMPLE        1
 
-#define NUM_SENSOR 		5	// a changer!!!
+#define NUM_SENSOR 		5
 
 #define DATABUFSIZE 	100
 #define GYROCALMAX		1000
@@ -77,6 +77,7 @@ typedef struct Sensor_struct {
 	uint16_t			type;
 
 	pthread_spinlock_t 	DataLock;
+	pthread_mutex_t		DataMutex;
 	sem_t				DataSem;
 	sem_t				TimerSem;
 	pthread_mutex_t 	DataSampleMutex;

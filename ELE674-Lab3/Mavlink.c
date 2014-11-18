@@ -43,11 +43,16 @@ void *MavlinkStatusTask(void *ptr) {
 		if (MavlinkActivated == 0)
 			break;
 		memset(buf, 0, BUFFER_LENGTH);
+
+		printf("%s \n", __FUNCTION__);
+
+		//pthread_mutex_lock(&(AttitudeMesure->AttitudeMutex));
 		pthread_spin_lock(&(AttitudeMesure->AttitudeLock));
-		memcpy((void *) &Data, (void *) &(AttitudeMesure->Data), sizeof(AttData));
-		memcpy((void *) &Speed, (void *) &(AttitudeMesure->Speed), sizeof(AttData));
-		TimeStamp = AttitudeMesure->timestamp_s*1000 + AttitudeMesure->timestamp_n/1000000L;
+			memcpy((void *) &Data, (void *) &(AttitudeMesure->Data), sizeof(AttData));
+			memcpy((void *) &Speed, (void *) &(AttitudeMesure->Speed), sizeof(AttData));
+			TimeStamp = AttitudeMesure->timestamp_s*1000 + AttitudeMesure->timestamp_n/1000000L;
 		pthread_spin_unlock(&(AttitudeMesure->AttitudeLock));
+		//pthread_mutex_unlock(&(AttitudeMesure->AttitudeMutex));
 
 		//Send Heartbeat
 		mavlink_msg_heartbeat_pack(SYSTEM_ID, COMPONENT_ID, &msg, MAV_TYPE_HELICOPTER, MAV_AUTOPILOT_GENERIC, MAV_MODE_GUIDED_ARMED, 0, MAV_STATE_ACTIVE);
@@ -64,24 +69,30 @@ void *MavlinkStatusTask(void *ptr) {
 		len = mavlink_msg_to_send_buffer(buf, &msg);
 		bytes_sent = sendto(Mavlink->sock, buf, len, 0, (struct sockaddr *)&Mavlink->gcAddr, sizeof(struct sockaddr_in));
 
-		pthread_spin_lock(&(AttitudeDesire->AttitudeLock));
-		memcpy((void *) &DataD, (void *) &(AttitudeDesire->Data), sizeof(AttData));
-		memcpy((void *) &SpeedD, (void *) &(AttitudeDesire->Speed), sizeof(AttData));
-		pthread_spin_unlock(&(AttitudeDesire->AttitudeLock));
-
+/*
+		pthread_mutex_lock(&AttitudeDesire->AttitudeMutex);
+		//pthread_spin_lock(&(AttitudeDesire->AttitudeLock));
+			memcpy((void *) &DataD, (void *) &(AttitudeDesire->Data), sizeof(AttData));
+			memcpy((void *) &SpeedD, (void *) &(AttitudeDesire->Speed), sizeof(AttData));
+		//pthread_spin_unlock(&(AttitudeDesire->AttitudeLock));
+		pthread_mutex_lock(&AttitudeDesire->AttitudeMutex);
+*/
+		//pthread_mutex_lock(&(AttitudeMesure->AttitudeMutex));
 		pthread_spin_lock(&(AttitudeMesure->AttitudeLock));
-		memcpy((void *) &DataM, (void *) &(AttitudeMesure->Data), sizeof(AttData));
-		memcpy((void *) &SpeedM, (void *) &(AttitudeMesure->Speed), sizeof(AttData));
+			memcpy((void *) &DataM, (void *) &(AttitudeMesure->Data), sizeof(AttData));
+			memcpy((void *) &SpeedM, (void *) &(AttitudeMesure->Speed), sizeof(AttData));
 		pthread_spin_unlock(&(AttitudeMesure->AttitudeLock));
+		//pthread_mutex_unlock(&(AttitudeMesure->AttitudeMutex));
+
 		Error[HEIGHT]    = DataD.Elevation - DataM.Elevation;
 		Error[ROLL]      = DataD.Roll - DataM.Roll;
 		Error[PITCH]     = DataD.Pitch - DataM.Pitch;
 		Error[YAW]       = DataD.Yaw - DataM.Yaw;
+
 		// Send Attitude
 		mavlink_msg_attitude_pack(SYSTEM_ID, COMPONENT_ID, &msg, TimeStamp, (float) Data.Roll, (float) Data.Pitch, (float) Data.Yaw, (float) Speed.Roll, (float) Speed.Pitch, (float) Speed.Yaw);
 		len = mavlink_msg_to_send_buffer(buf, &msg);
 		bytes_sent = sendto(Mavlink->sock, buf, len, 0, (struct sockaddr *)&Mavlink->gcAddr, sizeof(struct sockaddr_in));
-
 	}
 	printf("%s : Mavlink Status Arrêté\n", __FUNCTION__);
 	pthread_exit(NULL);
@@ -109,8 +120,11 @@ void *MavlinkReceiveTask(void *ptr) {
 		if (MavlinkActivated == 0)
 			break;
 
+		printf("%s \n", __FUNCTION__);
+
 		memset(buf, 0, BUFFER_LENGTH);
 		recsize = recvfrom(Mavlink->sock, (void *)buf, BUFFER_LENGTH, 0, (struct sockaddr *)&Mavlink->gcAddr, &fromlen);
+
 		if (recsize > 0) {
 			// Something received - print out all bytes and parse packet
 			for (i = 0; i < recsize; ++i) {
@@ -118,6 +132,7 @@ void *MavlinkReceiveTask(void *ptr) {
 					// Packet received
 				}
 			}
+
 			if (msg.msgid == MAVLINK_MSG_ID_MANUAL_CONTROL) {
 				mavlink_msg_manual_control_decode(&msg, &man_control);
 				Pitch		= -((double)man_control.y/1000.0)*PITCH_MAX*M_PI/180.0;
@@ -132,11 +147,15 @@ void *MavlinkReceiveTask(void *ptr) {
 				Data.Roll	    = Roll;
 				Data.Yaw	    = Yaw;
 				Data.Elevation  = Elevation;
+
+				//pthread_mutex_lock(&AttitudeDesire->AttitudeMutex);
 				pthread_spin_lock(&(AttitudeDesire->AttitudeLock));
-				memcpy((void *) &(AttitudeDesire->Data), (void *) &Data, sizeof(AttData));
-				memcpy((void *) &(AttitudeDesire->Speed), (void *) &Speed, sizeof(AttData));
-				AttitudeDesire->Throttle = (float)man_control.z/1000;
+					memcpy((void *) &(AttitudeDesire->Data), (void *) &Data, sizeof(AttData));
+					memcpy((void *) &(AttitudeDesire->Speed), (void *) &Speed, sizeof(AttData));
+					AttitudeDesire->Throttle = (float)man_control.z/1000;
 				pthread_spin_unlock(&(AttitudeDesire->AttitudeLock));
+				//pthread_mutex_unlock(&AttitudeDesire->AttitudeMutex);
+
 			} else {	// Un message non attendu a ete recu
 			}
 		}

@@ -26,150 +26,68 @@ uint8_t  numLogOutput 	  	= 0;
 
 
 
-/*void *ReadTask ( void *ptr ) {
-//INITIALISATION
-	uint16_t LocalIdx=0;
-	SensorStruct *Sensor = ptr;
-
-	//Ouverture du pilote
-	if((Sensor->File=open(Sensor->DevName, O_RDONLY))<0) // Read Bloquant ???, msg erreur = ??
-		printf("%s: erreur ouverture du pilote: %s",__FUNCTION__, Sensor->Name );
-	//Ready to start!
-	pthread_barrier_wait(&SensorStartBarrier);
-
-//EXECUTION
-	while (SensorsActivated) {
-		//tempo
-		sem_wait(&Sensor->TimerSem);
-		//printf("%s : %s\n",__FUNCTION__, Sensor->Name);
-
-		LocalIdx=Sensor->DataIdx;
-
-		//Lecture RawData (pilote)
-		pthread_mutex_lock(&Sensor->DataSampleMutex);
-		read(Sensor->File, &Sensor->RawData[LocalIdx], sizeof(SensorRawData));
-
-		//log perso
-		//printf("%s : %s =  %d  %d  %d \n",__FUNCTION__,Sensor->Name, Sensor->RawData[LocalIdx].data[0],Sensor->RawData[LocalIdx].data[1], Sensor->RawData[LocalIdx].data[2]);
-		Sensor->DataIdx = (LocalIdx + DATABUFSIZE +1) % DATABUFSIZE;
-		pthread_mutex_unlock(&Sensor->DataSampleMutex);
-
-		//signal : nouvel échantillon arrivé
-		pthread_cond_signal(&Sensor->DataNewSampleCondVar);
-	}
-//EXIT
-	pthread_exit(0);
-}*/
-
-
-/*void *ConversionTask ( void *ptr ) {
-
-//INITIALISATION
-	SensorStruct *Sensor = ptr;
-	uint16_t LocalIdx=0;
-	int16_t temp_rawdata[3]={0,0,0};
-	double temp_data[3]={0,0,0};
-
-	//Ready to start!
-	pthread_barrier_wait(&SensorStartBarrier);
-
-//EXECUTION
-
-	while (SensorsActivated) {
-
-		//capture MUTEX (condition)
-		pthread_mutex_lock(&Sensor->DataSampleMutex);
-
-		//Vérifie sa condition (nouveau no_echantillon)
-
-		while(!(Sensor->DataIdx != LocalIdx)){
-			pthread_cond_wait(&Sensor->DataNewSampleCondVar,&Sensor->DataSampleMutex);
-		}
-		// Boucle if pour vérification: ((Sensor->RawData->type == Sensor->type) & (Sensor->RawData->status == NEW_SAMPLE))){ //& ((ech_num  == Sensor->RawData->ech_num-1) | (ech_num  == 0 )))){
-		//printf("%s : %s\n",__FUNCTION__, Sensor->Name);
-		pthread_spin_lock(&Sensor->DataLock);
-			temp_rawdata[0]=Sensor->RawData[LocalIdx].data[0];
-			temp_rawdata[1]=Sensor->RawData[LocalIdx].data[1];
-			temp_rawdata[2]=Sensor->RawData[LocalIdx].data[2];
-		pthread_spin_unlock(&Sensor->DataLock);
-
-		temp_data[0] = ((double)temp_rawdata[0]- Sensor->Param->centerVal) * Sensor->Param->Conversion;
-		temp_data[1] = ((double)temp_rawdata[1]- Sensor->Param->centerVal) * Sensor->Param->Conversion;
-		temp_data[2] = ((double)temp_rawdata[2]- Sensor->Param->centerVal) * Sensor->Param->Conversion;
-
-		pthread_spin_lock(&Sensor->DataLock);
-			Sensor->Data[LocalIdx].Data[0] = temp_data[0];
-			Sensor->Data[LocalIdx].Data[1] = temp_data[1];
-			Sensor->Data[LocalIdx].Data[2] = temp_data[2];
-		pthread_spin_unlock(&Sensor->DataLock);
-
-		//calcul du temps entre
-		Sensor->Data->TimeDelay = Sensor->RawData->timestamp_n - Sensor->RawData->timestamp_s;
-		//fonction de log perso
-		//printf("%s : %s = %d %10.5lf  %10.5lf  %10.5lf \n",__FUNCTION__,Sensor->Name, Sensor->Data[LocalIdx].TimeDelay, temp_data[0],temp_data[1],temp_data[2]);
-		//incrémentation des buffers index
-		LocalIdx=Sensor->DataIdx;
-
-		//fin de sa conversion : libère MUTEX
-		pthread_mutex_unlock(&Sensor->DataSampleMutex);
-	}
-//EXIT
-	pthread_exit(0);
-}*/
-
 void *SensorTask ( void *ptr ) {
 
 	//INITIALISATION
 		//uint16_t LocalIdx=0;
 		SensorStruct *Sensor = ptr;
 		double temp_data[3]={0,0,0};
+		uint32_t TimeStamp_new, TimeStamp_old, TimeDelay;
 
 		//Ouverture du pilote
 		if((Sensor->File=open(Sensor->DevName, O_RDONLY))<0)
 			printf("%s: erreur ouverture du pilote: %s",__FUNCTION__, Sensor->Name );
-
 
 		//Ready to start!
 		pthread_barrier_wait(&SensorStartBarrier);
 
 	//EXECUTION
 		while (SensorsActivated) {
-			//tempo
-			sem_wait(&Sensor->TimerSem);
-
-			printf("%s : %s\n",__FUNCTION__, Sensor->Name);
-
+			printf("%s \n", __FUNCTION__);
 			//Lecture RawData (pilote)
-			read(Sensor->File, &Sensor->RawData[Sensor->DataIdx], sizeof(SensorRawData));
+			read(Sensor->File, &Sensor->RawData[(Sensor->DataIdx + DATABUFSIZE +1) % DATABUFSIZE], sizeof(SensorRawData));
+
+			pthread_mutex_lock(&Sensor->DataSampleMutex);
+			//pthread_spin_lock(&Sensor->DataLock);
+			//incrémentation DataIdx
+			Sensor->DataIdx = (Sensor->DataIdx + DATABUFSIZE +1) % DATABUFSIZE;
+
 
 			//log perso
 			//printf("%s : %s = %d %d %d  %d  %d  \n",__FUNCTION__,Sensor->Name,Sensor->RawData[Sensor->DataIdx].ech_num,Sensor->RawData[Sensor->DataIdx].status, Sensor->RawData[Sensor->DataIdx].data[0],Sensor->RawData[Sensor->DataIdx].data[1], Sensor->RawData[Sensor->DataIdx].data[2]);
-
-			// Boucle if pour vérification: ((Sensor->RawData->type == Sensor->type) & (Sensor->RawData->status == NEW_SAMPLE))){ //& ((ech_num  == Sensor->RawData->ech_num-1) | (ech_num  == 0 )))){
-			//printf("%s : %s\n",__FUNCTION__, Sensor->Name);
-
+			//pthread_spin_lock(&Sensor->DataLock);
 			//Conversion de RAWDATA
 			temp_data[0] = ((double)Sensor->RawData[Sensor->DataIdx].data[0]- Sensor->Param->centerVal) * Sensor->Param->Conversion;
 			temp_data[1] = ((double)Sensor->RawData[Sensor->DataIdx].data[1]- Sensor->Param->centerVal) * Sensor->Param->Conversion;
 			temp_data[2] = ((double)Sensor->RawData[Sensor->DataIdx].data[2]- Sensor->Param->centerVal) * Sensor->Param->Conversion;
+			TimeStamp_old =TimeStamp_new;
+			TimeStamp_new = Sensor->RawData[Sensor->DataIdx].timestamp_s*1000000000L + Sensor->RawData[Sensor->DataIdx].timestamp_n;
+			TimeDelay = TimeStamp_new-TimeStamp_old;
+
+			//if(Sensor->type==ACCELEROMETRE){
+				//printf("%s %s  %u %u \n",__FUNCTION__,Sensor->Name, Sensor->DataIdx,TimeDelay);
+			//}
 
 			//Copie des conversions vers DATA
 			pthread_spin_lock(&Sensor->DataLock);
+			//pthread_mutex_lock(&Sensor->DataMutex);
 				Sensor->Data[Sensor->DataIdx].Data[0] = temp_data[0];
 				Sensor->Data[Sensor->DataIdx].Data[1] = temp_data[1];
 				Sensor->Data[Sensor->DataIdx].Data[2] = temp_data[2];
-				Sensor->Data->TimeDelay = Sensor->RawData->timestamp_n - Sensor->RawData->timestamp_s;
+				Sensor->Data[Sensor->DataIdx].TimeDelay = TimeDelay;
+			//pthread_mutex_unlock(&Sensor->DataMutex);
 			pthread_spin_unlock(&Sensor->DataLock);
 
 			//fonction de log perso
+			//printf("%s: timedelay=%d \n",__FUNCTION__,Sensor->Data->TimeDelay);
 			//printf("%s : %s = %f %10.5lf  %10.5lf  %10.5lf \n",__FUNCTION__,Sensor->Name, Sensor->Data[Sensor->DataIdx].TimeDelay, temp_data[0],temp_data[1],temp_data[2]);
 
 			//incrémentation DataIdx
-			pthread_mutex_lock(&Sensor->DataSampleMutex);
-				Sensor->DataIdx = (Sensor->DataIdx + DATABUFSIZE +1) % DATABUFSIZE;
-			pthread_mutex_unlock(&Sensor->DataSampleMutex);
+			//Sensor->DataIdx = (Sensor->DataIdx + DATABUFSIZE +1) % DATABUFSIZE;
+
 
 			//Réveil : AttitudeTask
+			pthread_mutex_unlock(&Sensor->DataSampleMutex);
 			pthread_cond_signal(&Sensor->DataNewSampleCondVar);
 			}
 
@@ -186,17 +104,18 @@ int SensorsInit (SensorStruct SensorTab[NUM_SENSOR]) {
 	int i;
 	pthread_attr_t SensorTaskattr;
 	struct sched_param SchedParam;
-	int PRIO[5]={0};
+	//int PRIO[5]={0};
+	int minprio,maxprio;
 
 	//barrière initialisation Sensors tasks
 	pthread_barrier_init(&SensorStartBarrier, NULL, NUM_SENSOR+1);
 
 	//Définition : Priorité
-	PRIO[ACCELEROMETRE]=30;
+	/*PRIO[ACCELEROMETRE]=30;
 	PRIO[GYROSCOPE]=30;
 	PRIO[SONAR]=30;
 	PRIO[BAROMETRE]=30;
-	PRIO[MAGNETOMETRE]=30;
+	PRIO[MAGNETOMETRE]=30;*/
 
 	// Création attr pour  les Tasks
 	pthread_attr_init(&SensorTaskattr);
@@ -205,12 +124,22 @@ int SensorsInit (SensorStruct SensorTab[NUM_SENSOR]) {
 	pthread_attr_setscope(&SensorTaskattr, PTHREAD_SCOPE_SYSTEM);
 	pthread_attr_setstacksize(&SensorTaskattr,THREADSTACK);
 	pthread_attr_setschedpolicy(&SensorTaskattr, POLICY);
+	minprio = sched_get_priority_min(POLICY);
+	maxprio = sched_get_priority_max(POLICY);
+	SchedParam.sched_priority = minprio + (maxprio - minprio)/2;
+	pthread_attr_setschedparam(&SensorTaskattr,&SchedParam);
 
 	//Initialisation des verrous
 	for(i=0;i<NUM_SENSOR;i++){
 
 		//DataLock
 		if ((retval = pthread_spin_init(&SensorTab[i].DataLock, 1)) < 0) {
+			printf("%s : Errueur initialisation verrous retval = %d\n", __FUNCTION__, retval);
+			return retval;
+		}
+
+		//DataMutex
+		if((retval=pthread_mutex_init(&SensorTab[i].DataMutex,NULL))<0){
 			printf("%s : Errueur initialisation verrous retval = %d\n", __FUNCTION__, retval);
 			return retval;
 		}
@@ -240,8 +169,8 @@ int SensorsInit (SensorStruct SensorTab[NUM_SENSOR]) {
 		}
 
 		//Création de la Task
-		SchedParam.sched_priority=PRIO[i];
-		pthread_attr_setschedparam(&SensorTaskattr,&SchedParam);
+		//SchedParam.sched_priority=PRIO[i];
+		//pthread_attr_setschedparam(&SensorTaskattr,&SchedParam);
 		if ((retval = pthread_create(&SensorTab[i].SensorThread,&SensorTaskattr,SensorTask,&SensorTab[i]))<0){
 			printf("%s : Task[%d] abort, res=%d\n",__FUNCTION__,i,retval);
 			return retval;
@@ -317,6 +246,7 @@ int SensorsStop (SensorStruct SensorTab[NUM_SENSOR]) {
 
 		//détruire les verrous
 		pthread_spin_destroy(&SensorTab[i].DataLock);
+		pthread_mutex_destroy(&SensorTab[i].DataMutex);
 		pthread_cond_destroy(&SensorTab[i].DataNewSampleCondVar);
 		pthread_mutex_destroy(&SensorTab[i].DataSampleMutex);
 		sem_destroy(&SensorTab[i].TimerSem);
@@ -355,12 +285,13 @@ void *SensorLogTask ( void *ptr ) {
 			pthread_cond_wait(&(Sensor->DataNewSampleCondVar), &(Sensor->DataSampleMutex));
 	    pthread_mutex_unlock(&(Sensor->DataSampleMutex));
 
-	   	pthread_spin_lock(&(Sensor->DataLock));
+	   	//pthread_spin_lock(&(Sensor->DataLock));
+
     	NavData   = &(Sensor->Data[LocalIdx]);
     	RawData   = &(Sensor->RawData[LocalIdx]);
 		memcpy((void *) &tpRaw, (void *) RawData, sizeof(SensorRawData));
 		memcpy((void *) &tpNav, (void *) NavData, sizeof(SensorData));
-	   	pthread_spin_unlock(&(Sensor->DataLock));
+	   	//pthread_spin_unlock(&(Sensor->DataLock));
 
 	   	pthread_mutex_lock(&Log_Mutex);
 		if (numLogOutput == 0)
@@ -389,7 +320,7 @@ void *SensorLogTask ( void *ptr ) {
 
 	printf("%s : %s Terminé\n", __FUNCTION__, Sensor->Name);
 
-	pthread_exit(0); /* exit thread */
+	pthread_exit(0);
 }
 
 

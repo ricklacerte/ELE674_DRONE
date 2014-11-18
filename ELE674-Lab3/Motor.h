@@ -45,7 +45,7 @@ enum { MOTOR_NONE, MOTOR_PWM_ONLY, MOTOR_LED_ONLY, MOTOR_PWM_LED };
 
 #define SUCCESS 0
 #define MOTOR_PERIOD	1	//period = 5ms
-#define MOTOR_TASK_PRIO 30
+#define MOTOR_TASK_PRIO 50
 
 #define CMD_PWM		0x01
 #define CMD_LED		0x03
@@ -56,7 +56,8 @@ typedef struct motor_struct {
 	uint16_t	led[4];		// pourquoi 16 bits? -> 8 bits
 	int			file;
 	pthread_t 	MotorTask;
-	pthread_spinlock_t 	MotorLock;
+	//pthread_spinlock_t 	MotorLock;
+	pthread_mutex_t MotorMutex;
 } MotorStruct;
 
 int MotorInit (MotorStruct *Motor);

@@ -26,7 +26,7 @@
 #define THREADSTACK  65536
 
 
-enum { MOTOR_NONE, MOTOR_PWM_ONLY, MOTOR_LED_ONLY, MOTOR_PWM_LED };
+enum { MOTOR_NONE, MOTOR_PWM_ONLY, MOTOR_LED_ONLY, MOTOR_PWM_LED, MOTOR_STOP };
 
 #define MOTOR_LEDOFF 0x0000
 #define MOTOR_LEDRED 0x0100
@@ -56,7 +56,6 @@ typedef struct motor_struct {
 	uint16_t	led[4];		// pourquoi 16 bits? -> 8 bits
 	int			file;
 	pthread_t 	MotorTask;
-	//pthread_spinlock_t 	MotorLock;
 	pthread_mutex_t MotorMutex;
 } MotorStruct;
 

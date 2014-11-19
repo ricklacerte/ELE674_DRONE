@@ -7,7 +7,6 @@
 
 #ifndef ATTITUDE_H_
 #define ATTITUDE_H_
-
 #define _POSIX_C_SOURCE 200809L
 #define _XOPEN_SOURCE 500
 
@@ -24,7 +23,6 @@
 #include <semaphore.h>
 #include <string.h>
 #include <math.h>
-
 #include "Sensor.h"
 
 #define POLICY SCHED_RR
@@ -53,8 +51,6 @@ typedef struct AttitudeData_struct {
 	AttData		Speed;
 	double 		Throttle;
 	pthread_spinlock_t 	AttitudeLock;
-	pthread_mutex_t AttitudeMutex;
-
 } AttitudeData;
 
 
@@ -98,7 +94,6 @@ typedef struct AttitudeStruct_struct {
 				   	     }
 
 void *AttitudeTask(void *ptr);
-
 int   AttitudeInit (AttitudeStruct AttitudeTab[NUM_SENSOR]);
 int   AttitudeStart (void);
 int   AttitudeStop (AttitudeStruct AttitudeTab[NUM_SENSOR]);

@@ -165,6 +165,7 @@ void motor_send(MotorStruct *Motor, int SendMode){
 
 		//envoie de la trame au moteur
 		res=write(Motor->file,&trame_led,2);
+		fsync(Motor->file);
 		if(res<0)
 			printf("Erreur lors de l'envoi au pilote moteur(LED)! res=%d \n",res);
 		break;
@@ -185,6 +186,27 @@ void motor_send(MotorStruct *Motor, int SendMode){
 
 		if(res<0)
 			printf("Erreur lors de l'envoi au pilote moteur(PWM)! res=%d \n",res);
+		break;
+
+	case MOTOR_STOP:
+		tmp_pwm[0]=0;
+		tmp_pwm[1]=0;
+		tmp_pwm[2]=0;
+		tmp_pwm[3]=0;
+
+		//Construction de la trame PWM
+		trame_pwm[0]=(		(CMD_PWM & 0x07) << 5 	| (tmp_pwm[0]&MASK_9BITS) >> 4);
+		trame_pwm[1]=((tmp_pwm[0]&MASK_9BITS) << 4 	| (tmp_pwm[1]&MASK_9BITS) >> 5);
+		trame_pwm[2]=((tmp_pwm[1]&MASK_9BITS) << 3 	| (tmp_pwm[2]&MASK_9BITS) >> 6);
+		trame_pwm[3]=((tmp_pwm[2]&MASK_9BITS) << 2 	| (tmp_pwm[3]&MASK_9BITS) >> 7);
+		trame_pwm[4]= (tmp_pwm[3]&MASK_9BITS) << 1;
+
+		//envoie de la trame au moteur
+		res=write(Motor->file,trame_pwm,5);
+		fsync(Motor->file);
+		if(res<0){
+			printf("Erreur lors de l'envoi au pilote moteur(PWM)! res=%d \n",res);
+		}
 
 		break;
 	}
@@ -196,15 +218,18 @@ void motor_send(MotorStruct *Motor, int SendMode){
 void *MotorTask ( void * ptr ) {
 	MotorStruct *Motor= (MotorStruct *)ptr;
 	pthread_barrier_wait(&MotorStartBarrier);
+	printf("%s start! \n",__FUNCTION__ );
 
 	while (MotorActivated) {
 
 		//tempo : 5ms
 		sem_wait(&MotorTimerSem);
-		printf("%s \n", __FUNCTION__);
-		/*C'est quoi qu'on envoie quand?? */
-		//motor_send(Motor,MOTOR_PWM_ONLY);
-		//motor_send(Motor,MOTOR_LED_ONLY);
+
+		//Exit
+		if(!MotorActivated){
+			break;
+		}
+
 		motor_send(Motor,MOTOR_PWM_LED);
 	}
 
@@ -245,7 +270,6 @@ int MotorInit (MotorStruct *Motor) {
 	pthread_attr_setschedparam(&MotorTaskattr,&SchedParam);
 
 	// Création de MotorTask
-	//retval=pthread_create(&Motor->MotorTask,&MotorTaskattr,MotorTask,Motor); //est-ce que l'on envoie Motor ??
 	if ((retval = pthread_create(&Motor->MotorTask,&MotorTaskattr,MotorTask,Motor))<0){
 		printf("MotorInit : MotorTask Abort, res=%d\n",retval);
 		return retval;
@@ -265,13 +289,6 @@ int MotorInit (MotorStruct *Motor) {
 		printf("%s : Errueur initialisation verrous retval = %d\n", __FUNCTION__, retval);
 		return retval;
 	}
-
-	/*if ((retval = pthread_spin_init(&Motor->MotorLock, 1)) < 0) {
-		printf("%s : Impossible d'initialiser le spinlock (Motor.MotorLock): retval = %d\n", __FUNCTION__, retval);
-		return retval;
-	}*/
-
-
 	return retval;
 }
 
@@ -287,12 +304,25 @@ int MotorStart (void) {
 
 
 int MotorStop (MotorStruct *Motor) {
+	int res;
 
+	//STOP
 	MotorActivated=0;
+	sem_post(&MotorTimerSem);
+	motor_send(Motor,MOTOR_STOP);
 
-	pthread_join(Motor->MotorTask,NULL);
+	//TASK EXIT
+	res = pthread_join(Motor->MotorTask,NULL);
+	if (res) {
+		printf("pthread_join(MotorTask) : Erreur\n");
+		return res;
+	}
+	res=close(Motor->file);
+
+	//Destructions des Verrrous
 	sem_destroy(&MotorTimerSem);
-	pthread_mutex_destroy(&Motor->MotorMutex);
+	pthread_mutex_destroy(&Motor->MotorMutex); //Struct Motor
+
 /* A faire! */
 /* Ici, vous devriez arrêter les moteurs et fermer le Port des moteurs. */ 
 	return SUCCESS;

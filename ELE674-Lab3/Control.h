@@ -19,21 +19,17 @@
 #include <pthread.h>
 #include <semaphore.h>
 #include <sys/time.h>
-
 #include "Sensor.h"
 #include "Motor.h"
 #include "Attitude.h"
 
 #define POLICY2 SCHED_FIFO
 #define THREADSTACK  65536
-
-enum { HEIGHT, ROLL, PITCH, YAW };
-
 #define CONTROL_PERIOD	1
-#define CONTROL_TASK_PRIO 50 // ajout ***************
-
 #define TS 			(0.005)	// Ts = 5 ms
 #define DEADZONE	(0.10)
+
+enum { HEIGHT, ROLL, PITCH, YAW };
 
 typedef struct control_struct {
 	AttitudeData		*AttitudeDesire;
